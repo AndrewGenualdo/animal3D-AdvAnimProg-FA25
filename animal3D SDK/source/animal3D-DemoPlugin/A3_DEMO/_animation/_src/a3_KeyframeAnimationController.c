@@ -80,8 +80,6 @@ a3i32 a3clipControllerUpdate(a3_ClipController* clipCtrl, a3f64 dt)
 					clipCtrl->keyframeIndex = 0;
 					t1 = clipCtrl->keyframe[clipCtrl->keyframeIndex].duration_sec;
 					t0 = t1 - t;
-					a3f64 u = t / t1;
-					clipCtrl->keyframeParam = u;
 				}
 				else {
 					t -= t1;
@@ -102,8 +100,6 @@ a3i32 a3clipControllerUpdate(a3_ClipController* clipCtrl, a3f64 dt)
 					t += t1;
 					clipCtrl->keyframeTime_sec = t;
 					t0 = t1 - t;
-					a3f64 u = t / t1;
-					clipCtrl->keyframeParam = u;
 				}
 				else {
 					t1 = clipCtrl->keyframe[clipCtrl->keyframeIndex].duration_sec;
