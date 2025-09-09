@@ -44,6 +44,7 @@ extern "C"
 // metaphor: playhead
 typedef struct a3_ClipController
 {
+	//name of the keyframes
 	a3byte name[a3keyframeAnimation_nameLenMax];
 
 	// index of clip in pool and keyframe in clip
@@ -62,6 +63,9 @@ typedef struct a3_ClipController
 	a3_ClipPool const* clipPool;
 	a3_Clip const* clip;
 	a3_Keyframe const* keyframe;
+
+	// is the clip reversed
+	a3boolean reverse;
 } a3_ClipController;
 
 

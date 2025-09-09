@@ -70,6 +70,7 @@ inline a3i32 a3clipControllerSetClip(a3_ClipController* clipCtrl, const a3_ClipP
 		clipCtrl->clipTime_step = clipCtrl->keyframeTime_step = 0;
 		clipCtrl->clipTime_sec = clipCtrl->keyframeTime_sec = 0.0;
 		clipCtrl->clipParam = clipCtrl->keyframeParam = 0.0;
+		clipCtrl->reverse = false;
 
 		// set playback state
 		a3clipControllerSetPlayback(clipCtrl, playback_step, playback_stepPerSec);

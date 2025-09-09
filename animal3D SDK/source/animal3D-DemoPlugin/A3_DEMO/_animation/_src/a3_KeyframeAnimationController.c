@@ -55,9 +55,15 @@ a3i32 a3clipControllerUpdate(a3_ClipController* clipCtrl, a3f64 dt)
 //****TO-DO-ANIM-PROJECT-1: IMPLEMENT ME
 //-----------------------------------------------------------------------------
 
+		//working transitions:
+		//a3clip_stopFlag
+		//a3clip_playFlag
+		//a3clip_reverseFlag
+		a3_ClipTransitionFlag transitionType = a3clip_reverseFlag;
+
 		//1. time step: add dt
-		clipCtrl->clipTime_sec += dt;
-		clipCtrl->keyframeTime_sec += dt;
+		clipCtrl->clipTime_sec += dt * (clipCtrl->reverse ? -1 : 1);
+		clipCtrl->keyframeTime_sec += dt * (clipCtrl->reverse ? -1 : 1);
 
 		//2. resolve keyframe
 		a3f64 t = clipCtrl->keyframeTime_sec; //time through current keyframe
@@ -68,45 +74,93 @@ a3i32 a3clipControllerUpdate(a3_ClipController* clipCtrl, a3f64 dt)
 		//	a. paused: dt = 0
 		if (dt == 0.0f) return -1; //#1 : if time isn't passing, why bother doing anything?
 
-		//	b. forward: dt > 0
-		if (dt > 0) {
-			while (t >= t1) {//		ii. steps(s) taken
+		while (t >= t1 || t < t0) //		ii. steps(s) taken
+		{
+			if (t >= t1 && dt > 0) //	b. forward: dt > 0
+			{
 				clipCtrl->keyframeIndex++;
 				if (clipCtrl->keyframeIndex > clipCtrl->clipPool->keyframeCount)  //			iii. clip exited
 				{
-					t -= t1;
-					clipCtrl->keyframeTime_sec = t;
-					clipCtrl->clipTime_sec = t;
-					clipCtrl->keyframeIndex = 0;
-					t1 = clipCtrl->keyframe[clipCtrl->keyframeIndex].duration_sec;
-					t0 = t1 - t;
+					switch (transitionType)
+					{
+					case a3clip_stopFlag: //stop
+					{
+						t = t1;
+						break;
+					}
+					case a3clip_playFlag: //loop
+					{
+						t -= t1;
+						//move to beginning of clip
+						clipCtrl->keyframeTime_sec = t;
+						clipCtrl->clipTime_sec = t;
+						clipCtrl->keyframeIndex = 0;
+						t1 = clipCtrl->keyframe[clipCtrl->keyframeIndex].duration_sec;
+						t0 = t1 - t;
+						break;
+					}
+					case a3clip_reverseFlag: //ping-pong
+					{
+						//add time past the end of the keyframe to the beginning of the keyframe
+						t = t1 - t;
+						clipCtrl->reverse = !clipCtrl->reverse;
+						break;
+					}
+
+					}
+
 				}
-				else {
-					t -= t1;
-					t1 = clipCtrl->keyframe[clipCtrl->keyframeIndex].duration_sec;
-					t0 = t1 - t;
-				}
-				
-			}
-		//	c. reverse: dt < 0
-		} else { 
-			while (t < t0) { //		ii. step(s) taken
-				clipCtrl->keyframeIndex--;
-				if (clipCtrl->keyframeIndex < 0)  //			iii. clip exited
+				else
 				{
-					for (a3ui32 i = 0; i < clipCtrl->clipPool->keyframeCount; i++) clipCtrl->clipTime_sec += clipCtrl->keyframe[i].duration_sec;
-					clipCtrl->keyframeIndex = clipCtrl->clipPool->keyframeCount - 1;
+					//go to next keyframe
+					t -= t1;
 					t1 = clipCtrl->keyframe[clipCtrl->keyframeIndex].duration_sec;
-					t += t1;
-					clipCtrl->keyframeTime_sec = t;
 					t0 = t1 - t;
 				}
-				else {
+			}
+			else if(t < t0) //	c. reverse: dt < 0
+			{
+				clipCtrl->keyframeIndex--;
+				if (clipCtrl->keyframeIndex < 0) //			iii. clip exited
+				{
+
+					switch (transitionType)
+					{
+					case a3clip_stopFlag: //stop
+					{
+						t = 0;
+						break;
+					}
+					case a3clip_playFlag: //loop
+					{
+						//move to end of clip
+						for (a3ui32 i = 0; i < clipCtrl->clipPool->keyframeCount; i++) clipCtrl->clipTime_sec += clipCtrl->keyframe[i].duration_sec;
+
+						//set current keyframe to last keyframe
+						clipCtrl->keyframeIndex = clipCtrl->clipPool->keyframeCount - 1;
+						t1 = clipCtrl->keyframe[clipCtrl->keyframeIndex].duration_sec;
+						t += t1;
+						clipCtrl->keyframeTime_sec = t;
+						t0 = t1 - t;
+						break;
+					}
+					case a3clip_reverseFlag: //ping-pong
+					{
+						//add time past the beginning of the keyframe back to the keyframe
+						t = -(t0 - t);
+						clipCtrl->reverse = !clipCtrl->reverse;
+						break;
+					}
+					}
+
+				}
+				else
+				{
+					//go to previous keyframe
 					t1 = clipCtrl->keyframe[clipCtrl->keyframeIndex].duration_sec;
 					t += t1;
 					t0 = t1 - t;
 				}
-				
 			}
 		}
 
@@ -116,7 +170,10 @@ a3i32 a3clipControllerUpdate(a3_ClipController* clipCtrl, a3f64 dt)
 		clipCtrl->keyframeParam = u;
 		clipCtrl->keyframeTime_sec = t;
 
-
+		//1. time step: add dt
+		//2. resolve keyframe
+		//	a. paused: dt = 0
+		//	b. forward: dt > 0
 		//		i. stop
 		//		ii. step(s) taken
 		//		iii. clip exited
