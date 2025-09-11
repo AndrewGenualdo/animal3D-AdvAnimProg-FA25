@@ -114,7 +114,7 @@ a3i32 a3clipControllerUpdate(a3_ClipController* clipCtrl, a3f64 dt)
 		a3f64 u = t / t1;
 		
 		clipCtrl->keyframeParam = u;
-		clipCtrl->keyframeTime_sec = t;
+		clipCtrl->keyframeTime_sec = t;//test
 
 
 		//		i. stop
