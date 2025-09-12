@@ -26,7 +26,6 @@
 
 #include <string.h>
 
-
 // macros to help with names
 #define A3_CLIPCTRL_DEFAULTNAME		("unnamed clip ctrl")
 #define A3_CLIPCTRL_SEARCHNAME		((ctrlName && *ctrlName) ? ctrlName : A3_CLIPCTRL_DEFAULTNAME)
@@ -59,7 +58,7 @@ a3i32 a3clipControllerUpdate(a3_ClipController* clipCtrl, a3f64 dt)
 		//a3clip_stopFlag
 		//a3clip_playFlag
 		//a3clip_reverseFlag
-		a3_ClipTransitionFlag transitionType = a3clip_reverseFlag;
+		a3_ClipTransitionFlag transitionType = a3clip_playFlag;
 
 		//1. time step: add dt
 		clipCtrl->clipTime_sec += dt * (clipCtrl->reverse ? -1 : 1);
@@ -86,7 +85,9 @@ a3i32 a3clipControllerUpdate(a3_ClipController* clipCtrl, a3f64 dt)
 					case a3clip_stopFlag: //stop
 					{
 						t = t1;
-						break;
+						clipCtrl->clipParam = 1.0F;
+						clipCtrl->keyframeTime_sec = t1;
+						return -1;
 					}
 					case a3clip_playFlag: //loop
 					{
@@ -120,16 +121,20 @@ a3i32 a3clipControllerUpdate(a3_ClipController* clipCtrl, a3f64 dt)
 			}
 			else if(t < t0) //	c. reverse: dt < 0
 			{
+				const MAX_UI32 = 4294967295;
 				clipCtrl->keyframeIndex--;
-				if (clipCtrl->keyframeIndex < 0) //			iii. clip exited
+				//if it goes below 0, it wraps around to max value.
+				if (clipCtrl->keyframeIndex < 0 || clipCtrl->keyframeIndex == MAX_UI32) //			iii. clip exited
 				{
-
+					if (clipCtrl->keyframeIndex == MAX_UI32) clipCtrl->keyframeIndex = 0;
 					switch (transitionType)
 					{
 					case a3clip_stopFlag: //stop
 					{
 						t = 0;
-						break;
+						clipCtrl->keyframeParam = 0.0F;
+						clipCtrl->keyframeTime_sec = 0.0F;
+ 						return -1;
 					}
 					case a3clip_playFlag: //loop
 					{
