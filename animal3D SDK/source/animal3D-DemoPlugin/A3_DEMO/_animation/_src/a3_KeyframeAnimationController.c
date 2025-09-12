@@ -55,9 +55,15 @@ a3i32 a3clipControllerUpdate(a3_ClipController* clipCtrl, a3f64 dt)
 //****TO-DO-ANIM-PROJECT-1: IMPLEMENT ME
 //-----------------------------------------------------------------------------
 
+		//working transitions:
+		//a3clip_stopFlag
+		//a3clip_playFlag
+		//a3clip_reverseFlag
+		a3_ClipTransitionFlag transitionType = a3clip_stopFlag;
+
 		//1. time step: add dt
-		clipCtrl->clipTime_sec += dt;
-		clipCtrl->keyframeTime_sec += dt;
+		clipCtrl->clipTime_sec += (clipCtrl->reverse ? -1 : 1) * dt;
+		clipCtrl->keyframeTime_sec += (clipCtrl->reverse ? -1 : 1) * dt;
 
 		//2. resolve keyframe
 		a3f64 t = clipCtrl->keyframeTime_sec; //time through current keyframe
@@ -74,12 +80,26 @@ a3i32 a3clipControllerUpdate(a3_ClipController* clipCtrl, a3f64 dt)
 				clipCtrl->keyframeIndex++;
 				if (clipCtrl->keyframeIndex > clipCtrl->clipPool->keyframeCount)  //			iii. clip exited
 				{
-					t -= t1;
-					clipCtrl->keyframeTime_sec = t;
-					clipCtrl->clipTime_sec = t;
-					clipCtrl->keyframeIndex = 0;
-					t1 = clipCtrl->keyframe[clipCtrl->keyframeIndex].duration_sec;
-					t0 = t1 - t;
+					switch (transitionType) {
+						case a3clip_playFlag:
+							t -= t1;
+							clipCtrl->keyframeTime_sec = t;
+							clipCtrl->clipTime_sec = t;
+							clipCtrl->keyframeIndex = 0;
+							t1 = clipCtrl->keyframe[clipCtrl->keyframeIndex].duration_sec;
+							t0 = t1 - t;
+							break;
+						case a3clip_stopFlag:
+							t = t1;
+							clipCtrl->keyframeIndex--;
+							break;
+						case a3clip_reverseFlag:
+							t = t1 - t;
+							clipCtrl->reverse = true;
+							clipCtrl->keyframeIndex--;
+							break;
+					}
+					
 				}
 				else {
 					t -= t1;
@@ -92,14 +112,28 @@ a3i32 a3clipControllerUpdate(a3_ClipController* clipCtrl, a3f64 dt)
 		} else { 
 			while (t < t0) { //		ii. step(s) taken
 				clipCtrl->keyframeIndex--;
-				if (clipCtrl->keyframeIndex < 0)  //			iii. clip exited
+				if (clipCtrl->keyframeIndex < 0 || clipCtrl->keyframeIndex == 4294967295)  //			iii. clip exited
 				{
-					for (a3ui32 i = 0; i < clipCtrl->clipPool->keyframeCount; i++) clipCtrl->clipTime_sec += clipCtrl->keyframe[i].duration_sec;
-					clipCtrl->keyframeIndex = clipCtrl->clipPool->keyframeCount - 1;
-					t1 = clipCtrl->keyframe[clipCtrl->keyframeIndex].duration_sec;
-					t += t1;
-					clipCtrl->keyframeTime_sec = t;
-					t0 = t1 - t;
+					switch (transitionType) {
+						case a3clip_playFlag:
+							for (a3ui32 i = 0; i < clipCtrl->clipPool->keyframeCount; i++) clipCtrl->clipTime_sec += clipCtrl->keyframe[i].duration_sec;
+							clipCtrl->keyframeIndex = clipCtrl->clipPool->keyframeCount - 1;
+							t1 = clipCtrl->keyframe[clipCtrl->keyframeIndex].duration_sec;
+							t += t1;
+							clipCtrl->keyframeTime_sec = t;
+							t0 = t1 - t;
+							break;
+						case a3clip_stopFlag:
+							t = t0;
+							clipCtrl->keyframeIndex++;
+							break;
+						case a3clip_reverseFlag:
+							t = -t;
+							clipCtrl->reverse = false;
+							clipCtrl->keyframeIndex++;
+							break;
+					}
+					
 				}
 				else {
 					t1 = clipCtrl->keyframe[clipCtrl->keyframeIndex].duration_sec;
@@ -114,7 +148,7 @@ a3i32 a3clipControllerUpdate(a3_ClipController* clipCtrl, a3f64 dt)
 		a3f64 u = t / t1;
 		
 		clipCtrl->keyframeParam = u;
-		clipCtrl->keyframeTime_sec = t;//test
+		clipCtrl->keyframeTime_sec = t;
 
 
 		//		i. stop

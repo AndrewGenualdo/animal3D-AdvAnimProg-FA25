@@ -62,6 +62,9 @@ typedef struct a3_ClipController
 	a3_ClipPool const* clipPool;
 	a3_Clip const* clip;
 	a3_Keyframe const* keyframe;
+
+	a3boolean reverse;
+
 } a3_ClipController;
 
 
