@@ -321,7 +321,7 @@ a3i32 a3hierarchyPoseGroupLoadHTR(a3_HierarchyPoseGroup* poseGroup_out, a3_Hiera
 
 		//make sure it opens right
 		FILE* file = fopen(resourceFilePath, "r");
-		if (file == NULL) return EXIT_FAILURE;
+		if (file == NULL) return -1;
 
 		//header data
 		a3i32 numSegments = 0, numFrames = 0, dataFrameRate = 0;
@@ -341,19 +341,27 @@ a3i32 a3hierarchyPoseGroupLoadHTR(a3_HierarchyPoseGroup* poseGroup_out, a3_Hiera
 			{ 
 				counter = 0; //reset line counter
 				if (strncmp(line, "[Header]", 8) == 0) section = HEADER;
-				else if (strncmp(line, "[SegmentNames&Hierarchy]", 24) == 0) 
-				{ 
+				else if (strncmp(line, "[SegmentNames&Hierarchy]", 24) == 0)
+				{
 					if (a3hierarchyCreate(hierarchy_out, numSegments, NULL) != numSegments)
 					{
 						printf("failed to make hierarchy");
-						return EXIT_FAILURE;
+						return -1;
 					}
+					//get total poses in animation for allocation purposes
 					totalPoses = hierarchy_out->numNodes + hierarchy_out->numNodes * numFrames;
 					printf("total poses: %u\n", totalPoses);
-					a3hierarchyPoseGroupCreate(poseGroup_out, hierarchy_out, totalPoses); // allocates both pose pool and hpose array
-					poseGroup_out->hpose[0].hpose_base = poseGroup_out->pose;               // base pose
+					//allocates both pose pool and hpose array
+					if (a3hierarchyPoseGroupCreate(poseGroup_out, hierarchy_out, totalPoses) != 1)
+					{
+						printf("failed to create pose group");
+						return -1;
+					}
+					//base pose
+					poseGroup_out->hpose[0].hpose_base = poseGroup_out->pose;
 					poseGroup_out->hpose[0].hpose_index = 0;
-					poseGroup_out->hpose[1].hpose_base = poseGroup_out->pose + hierarchy_out->numNodes; // first animation pose
+					//first animation pose
+					poseGroup_out->hpose[1].hpose_base = poseGroup_out->pose + hierarchy_out->numNodes; 
 					poseGroup_out->hpose[1].hpose_index = hierarchy_out->numNodes;
 					section = SEGMENTS; 
 				}
@@ -365,7 +373,7 @@ a3i32 a3hierarchyPoseGroupLoadHTR(a3_HierarchyPoseGroup* poseGroup_out, a3_Hiera
 					if (sscanf(line, "[%255[^]]]", currentNodeName) != 1)
 					{
 						printf("Failed to parse frame header: '%s'\n", line);
-						return EXIT_FAILURE;
+						return -1;
 					}
 					printf("Arrived at node: '%s'\n", currentNodeName);
 					section = FRAME;
@@ -380,10 +388,10 @@ a3i32 a3hierarchyPoseGroupLoadHTR(a3_HierarchyPoseGroup* poseGroup_out, a3_Hiera
 				//extract relevant data from HEADER section
 				switch (counter)
 				{
-				case 3: if (sscanf(line, "NumSegments %d", &numSegments) != 1) return EXIT_FAILURE; break;
-				case 4: if (sscanf(line, "NumFrames %d", &numFrames) != 1) return EXIT_FAILURE; break;
-				case 5: if (sscanf(line, "DataFrameRate %d", &dataFrameRate) != 1) return EXIT_FAILURE; break;
-				case 11: if (sscanf(line, "ScaleFactor %f", &scaleFactor) != 1) return EXIT_FAILURE; break;
+				case 3: if (sscanf(line, "NumSegments %d", &numSegments) != 1) return -1; break;
+				case 4: if (sscanf(line, "NumFrames %d", &numFrames) != 1) return -1; break;
+				case 5: if (sscanf(line, "DataFrameRate %d", &dataFrameRate) != 1) return -1; break;
+				case 11: if (sscanf(line, "ScaleFactor %f", &scaleFactor) != 1) return -1; break;
 				}
 				break;
 			}
@@ -398,7 +406,7 @@ a3i32 a3hierarchyPoseGroupLoadHTR(a3_HierarchyPoseGroup* poseGroup_out, a3_Hiera
 				if (sscanf(line, "%s %s", child, parent) != 2) 
 				{
 					printf("Failed on node: '%s'\n", line);
-					return EXIT_FAILURE;
+					return -1;
 				}
 
 				//get parent index
@@ -410,24 +418,20 @@ a3i32 a3hierarchyPoseGroupLoadHTR(a3_HierarchyPoseGroup* poseGroup_out, a3_Hiera
 				if (parentIndex == -1 && strcmp(parent, "GLOBAL") != 0) 
 				{
 					printf("Parent not found: '%s'\n", parent);
-					return EXIT_FAILURE;
+					return -1;
 				}
 
 				//set new child node with parentIndex
 				if (a3hierarchySetNode(hierarchy_out, counter, parentIndex, child) == -1) 
 				{
 					printf("Failed to set node: '%s'\n", child);
-					return EXIT_FAILURE;
+					return -1;
 				}
 
 				printf("added node '%s' | '%s'\n", child, parent);
 				break;
 			}
 			case BASEPOS: {
-				if (counter == 0) //first line only
-				{ 
-					//a3hierarchyPoseGroupCreate(poseGroup_out, hierarchy_out, hierarchy_out->numNodes);
-				}
 				char name[256];
 				a3f32 tx, ty, tz, rx, ry, rz, boneLength;
 
@@ -435,7 +439,7 @@ a3i32 a3hierarchyPoseGroupLoadHTR(a3_HierarchyPoseGroup* poseGroup_out, a3_Hiera
 				if (sscanf(line, "%s %f %f %f %f %f %f %f", name, &tx, &ty, &tz, &rx, &ry, &rz, &boneLength) != 8)
 				{
 					printf("Failed to parse base position: '%s'\n", line);
-					return EXIT_FAILURE;
+					return -1;
 				}
 
 				//get node index
@@ -443,7 +447,7 @@ a3i32 a3hierarchyPoseGroupLoadHTR(a3_HierarchyPoseGroup* poseGroup_out, a3_Hiera
 				if (nodeIndex == -1) 
 				{
 					printf("Node '%s' not found in hierarchy\n", name);
-					return EXIT_FAILURE;
+					return -1;
 				}
 
 				//get allocated pose in poseGroup
@@ -458,7 +462,7 @@ a3i32 a3hierarchyPoseGroupLoadHTR(a3_HierarchyPoseGroup* poseGroup_out, a3_Hiera
 				if (nodeIndex == -1) 
 				{
 					printf("Node '%s' not found in hierarchy\n", currentNodeName);
-					return EXIT_FAILURE;
+					return -1;
 				}
 
 				a3i32 frameIndex;
@@ -467,7 +471,7 @@ a3i32 a3hierarchyPoseGroupLoadHTR(a3_HierarchyPoseGroup* poseGroup_out, a3_Hiera
 				if (sscanf(line, "%d %f %f %f %f %f %f %f", &frameIndex, &tx, &ty, &tz, &rx, &ry, &rz, &boneScale) != 8)
 				{
 					printf("Failed to parse frame line: '%s'\n", line);
-					return EXIT_FAILURE;
+					return -1;
 				}
 
 				//get allocated pose in poseGroup
