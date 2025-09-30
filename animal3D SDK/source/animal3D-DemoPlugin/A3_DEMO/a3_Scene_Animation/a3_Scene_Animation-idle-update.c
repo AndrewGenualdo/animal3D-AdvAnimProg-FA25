@@ -188,7 +188,7 @@ void a3animation_update_sceneGraph(a3_Scene_Animation* scene, a3f64 const dt)
 //-----------------------------------------------------------------------------
 //****TO-DO-ANIM-PROJECT-2: REMOVE ME WHEN FK IMPLEMENTED
 //-----------------------------------------------------------------------------
-	for (i = 0; i < animationMaxCount_sceneObject; ++i)
+	/*for (i = 0; i < animationMaxCount_sceneObject; ++i)
 	{
 		//****HINT: consider this for one part of the core FK function - what does this do?
 		scene->sceneGraphState->objectSpace->hpose_base[i].transformMat = scene->sceneGraphState->localSpace->hpose_base[i].transformMat;
@@ -197,7 +197,7 @@ void a3animation_update_sceneGraph(a3_Scene_Animation* scene, a3f64 const dt)
 		a3real4x4TransformInverse(
 			scene->sceneGraphState->objectSpaceInv->hpose_base[i].transformMat.m,
 			scene->sceneGraphState->objectSpace->hpose_base[i].transformMat.m);
-	}
+	}*/
 //-----------------------------------------------------------------------------
 //****END-TO-DO-PROJECT-2
 //-----------------------------------------------------------------------------

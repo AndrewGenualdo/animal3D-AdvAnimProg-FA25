@@ -234,7 +234,11 @@ a3i32 a3hierarchyStateUpdateLocalInverse(const a3_HierarchyState* state)
 //****TO-DO-ANIM-PROJECT-2: IMPLEMENT ME
 //-----------------------------------------------------------------------------
 		
-
+		for (i = 0; i < state->hierarchy->numNodes; ++i)
+		{
+			a3real4x4TransformInverse(state->localSpaceInv->hpose_base[i].transformMat.m,
+				state->localSpace->hpose_base[i].transformMat.m);
+		}
 
 //-----------------------------------------------------------------------------
 //****END-TO-DO-PROJECT-2
@@ -304,8 +308,194 @@ a3i32 a3hierarchyPoseGroupLoadHTR(a3_HierarchyPoseGroup* poseGroup_out, a3_Hiera
 //-----------------------------------------------------------------------------
 //****TO-DO-ANIM-PROJECT-2: IMPLEMENT ME
 //-----------------------------------------------------------------------------
+
+		enum Section { NONE, HEADER, SEGMENTS, BASEPOS, FRAME, END} section = NONE;
+
+		
+		//buffer for each line
+		char line[512]; 
+
+		//remember which node we're on
+		char currentNodeName[256] = "";
+
+		//make sure it opens right
+		FILE* file = fopen(resourceFilePath, "r");
+		if (file == NULL) return EXIT_FAILURE;
+
+		a3i32 numSegments = 0;
+		a3i32 numFrames = 0;
+		a3i32 dataFrameRate = 0;
+		a3f32 scaleFactor = 1.0;
+		a3ui32 counter = 0;
 		
 
+		//read line by line
+		while (fgets(line, sizeof(line), file))
+		{
+			
+			if (line[0] == '#') continue;
+			if (line[0] == '[') //update which section we are in
+			{ 
+				counter = 0;
+				if (strncmp(line, "[Header]", 8) == 0) section = HEADER;
+				else if (strncmp(line, "[SegmentNames&Hierarchy]", 24) == 0) section = SEGMENTS;
+				else if (strncmp(line, "[BasePosition]", 14) == 0) section = BASEPOS;
+				else if (strncmp(line, "[EndOfFile]", 11) == 0) section = END;
+				else //this is the only one with variable header names
+				{
+					//extract node name
+					if (sscanf(line, "[%255[^]]]", currentNodeName) != 1)
+					{
+						printf("Failed to parse frame header: '%s'\n", line);
+						return EXIT_FAILURE;
+					}
+					printf("Arrived at node: '%s'\n", currentNodeName);
+					section = FRAME;
+				}
+				continue;
+			}
+			
+			switch (section) 
+			{
+			case HEADER: 
+			{
+				//extract relevant data from HEADER section
+				switch (counter)
+				{
+				case 3: if (sscanf(line, "NumSegments %d", &numSegments) != 1) return EXIT_FAILURE; break;
+				case 4: if (sscanf(line, "NumFrames %d", &numFrames) != 1) return EXIT_FAILURE; break;
+				case 5: if (sscanf(line, "DataFrameRate %d", &dataFrameRate) != 1) return EXIT_FAILURE; break;
+				case 11: if (sscanf(line, "ScaleFactor %f", &scaleFactor) != 1) return EXIT_FAILURE; break;
+				}
+				break;
+			}
+			case SEGMENTS: 
+			{
+				if (counter == 0) //first segment only
+				{ 
+					if (a3hierarchyCreate(hierarchy_out, numSegments, NULL) != numSegments) 
+					{
+						printf("failed to make hierarchy");
+						return EXIT_FAILURE;
+					}
+				}
+
+				//strip newline
+				line[strcspn(line, "\r\n")] = 0;
+
+				//scan line for child and parent
+				a3byte child[a3node_nameSize], parent[a3node_nameSize];
+				if (sscanf(line, "%s %s", child, parent) != 2) 
+				{
+					printf("Failed on node: '%s'\n", line);
+					return EXIT_FAILURE;
+				}
+
+				//get parent index
+				a3i32 parentIndex;
+				if (strcmp(parent, "GLOBAL") == 0) parentIndex = -1;
+				else parentIndex = a3hierarchyGetNodeIndex(hierarchy_out, parent);
+
+				//get parent from hierarchy
+				if (parentIndex == -1 && strcmp(parent, "GLOBAL") != 0) 
+				{
+					printf("Parent not found: '%s'\n", parent);
+					return EXIT_FAILURE;
+				}
+
+				//set new child node with parentIndex
+				if (a3hierarchySetNode(hierarchy_out, counter, parentIndex, child) == -1) 
+				{
+					printf("Failed to set node: '%s'\n", child);
+					return EXIT_FAILURE;
+				}
+
+				printf("added node '%s' | '%s'\n", child, parent);
+				break;
+			}
+			case BASEPOS: {
+				if (counter == 0) //first line only
+				{ 
+					a3hierarchyPoseGroupCreate(poseGroup_out, hierarchy_out, hierarchy_out->numNodes);
+				}
+				char name[256];
+				a3f32 tx, ty, tz, rx, ry, rz, boneLength;
+
+				//load data from line
+				if (sscanf(line, "%s %f %f %f %f %f %f %f", name, &tx, &ty, &tz, &rx, &ry, &rz, &boneLength) != 8)
+				{
+					printf("Failed to parse base position: '%s'\n", line);
+					return EXIT_FAILURE;
+				}
+
+				//get node index
+				a3i32 nodeIndex = a3hierarchyGetNodeIndex(hierarchy_out, name);
+				if (nodeIndex == -1) 
+				{
+					printf("Node '%s' not found in hierarchy\n", name);
+					return EXIT_FAILURE;
+				}
+
+				//get allocated pose in poseGroup
+				a3_SpatialPose* pose = &poseGroup_out->pose[nodeIndex];
+				a3spatialPoseReset(pose);
+				a3spatialPoseSetTranslation(pose, tx, ty, tz);
+				a3spatialPoseSetRotation(pose, rx, ry, rz);
+				//set bone length??? I don't know where to put this
+				break;
+			}
+			case FRAME: {
+				if (counter == 0) // first line of first FRAME section
+				{
+					poseGroup_out->poseCount = hierarchy_out->numNodes * numFrames;
+					poseGroup_out->pose = (a3_SpatialPose*)malloc(sizeof(a3_SpatialPose) * poseGroup_out->poseCount);
+					if (!poseGroup_out->pose)
+					{
+						printf("Failed to allocate pose array for frames.\n");
+						return EXIT_FAILURE;
+					}
+
+					// Optionally reset the hpose pointer
+					poseGroup_out->hpose[0].hpose_base = poseGroup_out->pose;
+					poseGroup_out->hpose[0].hpose_index = 0;
+				}
+
+				a3i32 nodeIndex = a3hierarchyGetNodeIndex(hierarchy_out, currentNodeName);
+				if (nodeIndex == -1) {
+					printf("Node '%s' not found in hierarchy\n", currentNodeName);
+					return EXIT_FAILURE;
+				}
+
+				a3i32 frameIndex;
+				a3f32 tx, ty, tz, rx, ry, rz, boneScale;
+
+				if (sscanf(line, "%d %f %f %f %f %f %f %f", &frameIndex, &tx, &ty, &tz, &rx, &ry, &rz, &boneScale) != 8)
+				{
+					printf("Failed to parse frame line: '%s'\n", line);
+					return EXIT_FAILURE;
+				}
+
+				//get allocated pose in poseGroup
+				a3_SpatialPose* pose = &poseGroup_out->pose[nodeIndex + frameIndex * hierarchy_out->numNodes];
+				a3spatialPoseReset(pose);
+				a3spatialPoseSetTranslation(pose, tx, ty, tz);
+				a3spatialPoseSetRotation(pose, rx, ry, rz);
+
+				break;
+			}
+			}
+			counter++;
+		}
+
+		// Close the file
+		fclose(file);
+		printf("loaded file: %s\n", resourceFilePath);
+		printf("segments: %d\n", numSegments);
+		printf("frames: %d\n", numFrames);
+		printf("rate: %d\n", dataFrameRate);
+		printf("scale: %f\n", scaleFactor);
+		return 0;
+		
 
 //-----------------------------------------------------------------------------
 //****END-TO-DO-PROJECT-2
