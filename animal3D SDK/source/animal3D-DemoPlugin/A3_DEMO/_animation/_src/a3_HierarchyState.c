@@ -324,27 +324,39 @@ a3i32 a3hierarchyPoseGroupLoadHTR(a3_HierarchyPoseGroup* poseGroup_out, a3_Hiera
 		if (file == NULL) return EXIT_FAILURE;
 
 		//header data
-		/*a3i32 numSegments = 0;
-		a3i32 numFrames = 0;
-		a3i32 dataFrameRate = 0;
-		a3f32 scaleFactor = 1.0;*/
 		a3i32 numSegments = 0, numFrames = 0, dataFrameRate = 0;
 		a3f32 scaleFactor = 1.0;
 
+		a3ui32 totalPoses = 0;
 
-		a3ui32 counter = 0;
+		a3ui32 counter = 0; //how many lines into the current header we are
 		
 
 		//read line by line
 		while (fgets(line, sizeof(line), file))
 		{
 			
-			if (line[0] == '#') continue;
+			if (line[0] == '#') continue; //comments
 			if (line[0] == '[') //update which section we are in
 			{ 
-				counter = 0;
+				counter = 0; //reset line counter
 				if (strncmp(line, "[Header]", 8) == 0) section = HEADER;
-				else if (strncmp(line, "[SegmentNames&Hierarchy]", 24) == 0) section = SEGMENTS;
+				else if (strncmp(line, "[SegmentNames&Hierarchy]", 24) == 0) 
+				{ 
+					if (a3hierarchyCreate(hierarchy_out, numSegments, NULL) != numSegments)
+					{
+						printf("failed to make hierarchy");
+						return EXIT_FAILURE;
+					}
+					totalPoses = hierarchy_out->numNodes + hierarchy_out->numNodes * numFrames;
+					printf("total poses: %u\n", totalPoses);
+					a3hierarchyPoseGroupCreate(poseGroup_out, hierarchy_out, totalPoses); // allocates both pose pool and hpose array
+					poseGroup_out->hpose[0].hpose_base = poseGroup_out->pose;               // base pose
+					poseGroup_out->hpose[0].hpose_index = 0;
+					poseGroup_out->hpose[1].hpose_base = poseGroup_out->pose + hierarchy_out->numNodes; // first animation pose
+					poseGroup_out->hpose[1].hpose_index = hierarchy_out->numNodes;
+					section = SEGMENTS; 
+				}
 				else if (strncmp(line, "[BasePosition]", 14) == 0) section = BASEPOS;
 				else if (strncmp(line, "[EndOfFile]", 11) == 0) section = END;
 				else //this is the only one with variable header names
@@ -377,14 +389,6 @@ a3i32 a3hierarchyPoseGroupLoadHTR(a3_HierarchyPoseGroup* poseGroup_out, a3_Hiera
 			}
 			case SEGMENTS: 
 			{
-				if (counter == 0) //first segment only
-				{ 
-					if (a3hierarchyCreate(hierarchy_out, numSegments, NULL) != numSegments) 
-					{
-						printf("failed to make hierarchy");
-						return EXIT_FAILURE;
-					}
-				}
 
 				//strip newline
 				line[strcspn(line, "\r\n")] = 0;
@@ -422,7 +426,7 @@ a3i32 a3hierarchyPoseGroupLoadHTR(a3_HierarchyPoseGroup* poseGroup_out, a3_Hiera
 			case BASEPOS: {
 				if (counter == 0) //first line only
 				{ 
-					a3hierarchyPoseGroupCreate(poseGroup_out, hierarchy_out, hierarchy_out->numNodes);
+					//a3hierarchyPoseGroupCreate(poseGroup_out, hierarchy_out, hierarchy_out->numNodes);
 				}
 				char name[256];
 				a3f32 tx, ty, tz, rx, ry, rz, boneLength;
@@ -443,29 +447,13 @@ a3i32 a3hierarchyPoseGroupLoadHTR(a3_HierarchyPoseGroup* poseGroup_out, a3_Hiera
 				}
 
 				//get allocated pose in poseGroup
-				a3_SpatialPose* pose = &poseGroup_out->pose[nodeIndex];
+				a3_SpatialPose* pose = &poseGroup_out->pose[nodeIndex]; //basepose starts at index 0
 				a3spatialPoseReset(pose);
 				a3spatialPoseSetTranslation(pose, tx, ty, tz);
 				a3spatialPoseSetRotation(pose, rx, ry, rz);
-				//set bone length??? I don't know where to put this
 				break;
 			}
 			case FRAME: {
-				if (counter == 0) // first line of first FRAME section
-				{
-					poseGroup_out->poseCount = hierarchy_out->numNodes * numFrames;
-					poseGroup_out->pose = (a3_SpatialPose*)malloc(sizeof(a3_SpatialPose) * poseGroup_out->poseCount);
-					if (!poseGroup_out->pose)
-					{
-						printf("Failed to allocate pose array for frames.\n");
-						return EXIT_FAILURE;
-					}
-
-					// Optionally reset the hpose pointer
-					poseGroup_out->hpose[0].hpose_base = poseGroup_out->pose;
-					poseGroup_out->hpose[0].hpose_index = 0;
-				}
-
 				a3i32 nodeIndex = a3hierarchyGetNodeIndex(hierarchy_out, currentNodeName);
 				if (nodeIndex == -1) 
 				{
@@ -483,7 +471,7 @@ a3i32 a3hierarchyPoseGroupLoadHTR(a3_HierarchyPoseGroup* poseGroup_out, a3_Hiera
 				}
 
 				//get allocated pose in poseGroup
-				a3_SpatialPose* pose = &poseGroup_out->pose[nodeIndex + frameIndex * hierarchy_out->numNodes];
+				a3_SpatialPose* pose = &poseGroup_out->pose[hierarchy_out->numNodes + frameIndex * hierarchy_out->numNodes + nodeIndex];
 				a3spatialPoseReset(pose);
 				a3spatialPoseSetTranslation(pose, tx, ty, tz);
 				a3spatialPoseSetRotation(pose, rx, ry, rz);
