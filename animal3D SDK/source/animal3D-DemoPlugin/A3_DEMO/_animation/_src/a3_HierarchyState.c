@@ -309,6 +309,7 @@ a3i32 a3hierarchyPoseGroupLoadHTR(a3_HierarchyPoseGroup* poseGroup_out, a3_Hiera
 //****TO-DO-ANIM-PROJECT-2: IMPLEMENT ME
 //-----------------------------------------------------------------------------
 
+		//written by Andrew Genualdo
 		enum Section { NONE, HEADER, SEGMENTS, BASEPOS, FRAME, END} section = NONE;
 
 		
@@ -322,10 +323,15 @@ a3i32 a3hierarchyPoseGroupLoadHTR(a3_HierarchyPoseGroup* poseGroup_out, a3_Hiera
 		FILE* file = fopen(resourceFilePath, "r");
 		if (file == NULL) return EXIT_FAILURE;
 
-		a3i32 numSegments = 0;
+		//header data
+		/*a3i32 numSegments = 0;
 		a3i32 numFrames = 0;
 		a3i32 dataFrameRate = 0;
+		a3f32 scaleFactor = 1.0;*/
+		a3i32 numSegments = 0, numFrames = 0, dataFrameRate = 0;
 		a3f32 scaleFactor = 1.0;
+
+
 		a3ui32 counter = 0;
 		
 
@@ -461,7 +467,8 @@ a3i32 a3hierarchyPoseGroupLoadHTR(a3_HierarchyPoseGroup* poseGroup_out, a3_Hiera
 				}
 
 				a3i32 nodeIndex = a3hierarchyGetNodeIndex(hierarchy_out, currentNodeName);
-				if (nodeIndex == -1) {
+				if (nodeIndex == -1) 
+				{
 					printf("Node '%s' not found in hierarchy\n", currentNodeName);
 					return EXIT_FAILURE;
 				}
