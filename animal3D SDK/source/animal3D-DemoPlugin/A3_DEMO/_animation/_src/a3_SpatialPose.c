@@ -102,6 +102,7 @@ a3i32 a3spatialPoseConvert(a3_SpatialPose* spatialPose, const a3_SpatialPoseChan
 }
 
 // restore single node pose from matrix
+#include <math.h>
 a3i32 a3spatialPoseRestore(a3_SpatialPose* spatialPose, const a3_SpatialPoseChannel channel, const a3_SpatialPoseEulerOrder order)
 {
 	if (spatialPose)
@@ -117,14 +118,53 @@ a3i32 a3spatialPoseRestore(a3_SpatialPose* spatialPose, const a3_SpatialPoseChan
 		// 
 		// R(z,y,x) = R(z) * R(y) * R(x)
 		// 
-		//   { ?  ?  ? } { ?  ?  ? } { ?  ?  ? }
-		// = { ?  ?  ? } { ?  ?  ? } { ?  ?  ? }
-		//   { ?  ?  ? } { ?  ?  ? } { ?  ?  ? }
+		//                      { cz  -sz  0 } {  cy  0  sy } { 1   0    0 }
+		// R(z) * R(y) * R(x) = { sz   cz  0 } {   0  1   0 } { 0  cx  -sx }
+		//                      {  0    0  1 } { -sy  0  cy } { 0  sx   cx }
 		// 
-		//   { ?  ?  ? }
-		// = { ?  ?  ? }
-		//   { ?  ?  ? }
+		// WARNING: THIS MIGHT BE WRONG, CHECK NOTES
+		//     { czcy  -szcx+czsysx  szsx + czsycx }
+		// R = { szcy  czcx+szsysx  -czsx+szsycx }
+		//     { -sy  cysx  cycz }
 		//
+		//INVERSE (need x, y, and z)
+		//
+		//   y = sin^-1(-R(0,2))
+		//   z = tanz = sinz / cosz 
+		//   z = (R(0,0) / R(0,1))
+		//   
+		// sinz*cosy
+		// --------
+		// cosz*cosy
+		//z = atan2(R(0,1), R(0,0))
+		//R(0,1) = sine
+		//R(0,0) = cosine
+		//x = atan2(R(1,2), R(2,2))
+
+		//x = atan2(R(1,2), R(2,2))
+		//y = sin^-1(-R(0,2))
+		//z = atan2(R(0, 1), R(0, 0))
+
+
+		// extract translation
+		spatialPose->transformMat.v3 = spatialPose->translate;
+
+		// scale is magnitude of columns
+		spatialPose->scale.x = a3realLength(spatialPose->transformMat.v0.v);
+		spatialPose->scale.y = a3realLength(spatialPose->transformMat.v1.v);
+		spatialPose->scale.z = a3realLength(spatialPose->transformMat.v2.v);
+
+		// extract rotation by dividing columns by respective scale
+		a3mat3 R;
+		a3real3QuotientS(R.v0.v, spatialPose->transformMat.v0.v, spatialPose->scale.x);
+		a3real3QuotientS(R.v1.v, spatialPose->transformMat.v1.v, spatialPose->scale.y);
+		a3real3QuotientS(R.v2.v, spatialPose->transformMat.v2.v, spatialPose->scale.z);
+
+		// extract angles
+		spatialPose->rotate.y = a3real_rad2deg * atan2f(R.m12, R.m22);
+		spatialPose->rotate.z = a3real_rad2deg * asinf(R.m02, R.m12);
+		spatialPose->rotate.x = a3real_rad2deg * atan2f(R.m01, R.m00);
+
 
 //-----------------------------------------------------------------------------
 //****END-TO-DO-PROJECT-3
