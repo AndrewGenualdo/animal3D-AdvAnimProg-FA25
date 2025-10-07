@@ -102,7 +102,8 @@ a3i32 a3spatialPoseConvert(a3_SpatialPose* spatialPose, const a3_SpatialPoseChan
 }
 
 // restore single node pose from matrix
-#include <math.h>
+extern float asinf(float y_r);
+extern float atan2f(float y, float x);
 a3i32 a3spatialPoseRestore(a3_SpatialPose* spatialPose, const a3_SpatialPoseChannel channel, const a3_SpatialPoseEulerOrder order)
 {
 	if (spatialPose)
@@ -150,9 +151,9 @@ a3i32 a3spatialPoseRestore(a3_SpatialPose* spatialPose, const a3_SpatialPoseChan
 		spatialPose->transformMat.v3 = spatialPose->translate;
 
 		// scale is magnitude of columns
-		spatialPose->scale.x = a3realLength(spatialPose->transformMat.v0.v);
-		spatialPose->scale.y = a3realLength(spatialPose->transformMat.v1.v);
-		spatialPose->scale.z = a3realLength(spatialPose->transformMat.v2.v);
+		spatialPose->scale.x = a3real4Length(spatialPose->transformMat.v0.v);
+		spatialPose->scale.y = a3real4Length(spatialPose->transformMat.v1.v);
+		spatialPose->scale.z = a3real4Length(spatialPose->transformMat.v2.v);
 
 		// extract rotation by dividing columns by respective scale
 		a3mat3 R;
@@ -161,9 +162,9 @@ a3i32 a3spatialPoseRestore(a3_SpatialPose* spatialPose, const a3_SpatialPoseChan
 		a3real3QuotientS(R.v2.v, spatialPose->transformMat.v2.v, spatialPose->scale.z);
 
 		// extract angles
-		spatialPose->rotate.y = a3real_rad2deg * atan2f(R.m12, R.m22);
-		spatialPose->rotate.z = a3real_rad2deg * asinf(R.m02, R.m12);
-		spatialPose->rotate.x = a3real_rad2deg * atan2f(R.m01, R.m00);
+		spatialPose->rotate.x = a3real_rad2deg * atan2f(R.m12, R.m22);
+		spatialPose->rotate.y = a3real_rad2deg * asinf(-R.m02);
+		spatialPose->rotate.z = a3real_rad2deg * atan2f(R.m01, R.m00);
 
 
 //-----------------------------------------------------------------------------
